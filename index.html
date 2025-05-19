@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Robot Görev Oyunu</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: 'Segoe UI', sans-serif;
+    }
+    #ui {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+    .panel {
+      pointer-events: auto;
+      background: rgba(20, 20, 30, 0.9);
+      border: 2px solid #444;
+      border-radius: 16px;
+      padding-top: 50px;
+      padding: 12px;
+      color: #fff;
+      font-size: 14px;
+      box-shadow: 0 0 10px rgba(255, 255, 255, 0.1);
+    }
+    #tasks {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      width: 340px;
+      font-family: 'Courier New', monospace;
+      background: linear-gradient(135deg, #222, #111);
+    }
+    #code {
+      position: absolute;
+      top: 290px;
+      left: 10px;
+      width: 340px;
+    }
+    #pyInput {
+      width: 95%;
+      height: 180px;
+      background: #1e1e2e;
+      color: #00ffcc;
+      font-family: 'Fira Code', monospace;
+      padding: 10px;
+      padding-top: -100px;
+      font-size: 13px;
+      border-radius: 10px;
+      border: none;
+      resize: none;
+    }
+    #runBtn {
+      width: 100%;
+      margin-top: 8px;
+      padding: 10px;
+      border: none;
+      background: linear-gradient(to right, #00c853, #64dd17);
+      color: white;
+      font-weight: bold;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+    #runBtn:hover {
+      background: linear-gradient(to right, #64dd17, #00c853);
+    }
+    #stats {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      width: 160px;
+      background: rgba(0, 0, 0, 0.6);
+      font-size: 15px;
+      text-align: center;
+      font-family: 'Courier New', monospace;
+    }
+    canvas {
+      display: block;
+    }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "jsm/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
+</head>
+<body>
+  <div id="ui">
+    <div id="tasks" class="panel">
+      <h3 style="padding-left:80px;"> 🧑‍💻 Komutlar 👩‍💻 </h3>
+      <ul>
+        <li>🚶‍♂️ <code>forward(x)</code> — x adım ilerler</li>
+        <li>↩️ <code>turn_left()</code> — Sola döner</li>
+        <li>↪️ <code>turn_right()</code> — Sağa döner</li>
+        <li>🔙 <code>backward(x)</code> — x adım geri gider</li>
+        <li>🌀 <code>spin()</code> — spin hareketi</li>
+        <li>👋 <code>wave_arm()</code> — sallanma hareketi</li>
+        <li>💃 <code>dance()</code> — Dans etme</li>
+        <li>🦘 <code>jump()</code> — Zıplama</li>
+        <li>⏳ <code>wait(x)</code> — x süre bekler</li>
+
+        <!-- <li>🎁 <code>collect()</code> — Ödül toplar</li> -->
+      </ul>
+    </div>
+    <div id="code" class="panel">
+      <textarea id="pyInput" placeholder="Python kodunu yaz... (örn: forward(10))"></textarea>
+      <button id="runBtn">▶️ ÇALIŞTIR</button>
+    </div>
+    <div id="stats" class="panel">
+      <div>🏆 Skor: <span id="score">0</span></div>
+      <div>❤️ Can: <span id="life">3</span></div>
+    </div>
+  </div>
+  <button id="mode-toggle" style="
+  position: absolute;
+  top: 90px;
+  right: 30px;
+  z-index: 999;
+  padding: 8px 14px;
+  background-color: #444;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+">
+  🧑‍💻 Kod Sürüşü 👩‍💻
+</button>
+
+<div id="info-panel" style="
+  position: absolute;
+  top: 150px;
+  right: 10px;
+  z-index: 999;
+  background: rgba(0,0,0,0.8);
+  color: #fff;
+  padding: 12px 14px;
+  border-radius: 8px;
+  font-family: sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  display: none;  /* Başlangıçta gizli */
+  max-width: 200px;
+  transition: opacity 0.3s ease;
+">
+  <strong>🕹️ Serbest Sürüş</strong><br>
+  <ul style="padding-left: 16px; margin: 8px 0 0 0;">
+    <li>⬆️ W – İleri</li>
+    <li>⬇️ S – Geri</li>
+    <li>↩️ A – Sola Dön</li>
+    <li>↪️ D – Sağa Dön</li>
+    <li>␣ Space – Zıpla</li>
+    <li>R – Spin</li>
+    <li>Q – Kol Salla</li>
+    <li>E – Dans Et</li>
+  </ul>
+</div>
+
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'jsm/controls/OrbitControls.js';
+    import { GLTFLoader } from "jsm/loaders/GLTFLoader.js";
+
+    let scene = new THREE.Scene();
+    let camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 0, 0);
+    let renderer = new THREE.WebGLRenderer();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    document.body.appendChild(renderer.domElement);
+
+    const sun = new THREE.DirectionalLight(0xffffff, 2);
+    sun.position.set(5, 5, 5);
+    sun.castShadow = true;
+    scene.add(sun);
+
+    let robotX = 0, robotY=0.1, robotZ = 0, robotRot = 0;
+    let commandQueue = [];
+
+    const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 1.5);
+    scene.add(hemi);
+
+    let ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    scene.add(ambientLight);
+    let pointLight = new THREE.PointLight(0xffff99, 1);
+    pointLight.position.set(5, 10, 5);
+    scene.add(pointLight);
+
+    
+    // Robot yükle
+    const gltfLoader = new GLTFLoader();
+    const astroGlb = await gltfLoader.loadAsync("assets/robot_car.glb");
+    const robot = astroGlb.scene;
+    robot.scale.set(0.003, 0.004, 0.004);
+    robot.rotation.x = -Math.PI / 2;
+    robot.position.set(0, 0.2, 0);
+    robot.traverse((child) => {
+      if (child.isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+        child.material.roughness = 0.2;
+        child.material.metalness = 0.2;
+        child.geometry.center();
+      }
+    });
+    scene.add(robot);
+
+    // Zemin
+    const textureLoader = new THREE.TextureLoader();
+    const pavement = textureLoader.load('assets/pavement.png');
+    pavement.wrapS = THREE.RepeatWrapping;
+    pavement.wrapT = THREE.RepeatWrapping;
+    pavement.repeat.set(5, 5);
+    pavement.encoding = THREE.sRGBEncoding;
+
+    const plane = new THREE.Mesh(
+      new THREE.PlaneGeometry(10, 10),
+      new THREE.MeshStandardMaterial({ map: pavement, roughness: 0.3, metalness: 0.1 })
+    );
+    plane.rotation.x = -Math.PI / 2;
+    plane.position.z = -1.5;
+    plane.receiveShadow = true;
+    scene.add(plane);
+
+    camera.position.set(8, 5, 0);
+    camera.lookAt(0, 0, 0);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+
+   
+    const keys = { w: false, a: false, s: false, d: false };
+    // score
+    // Skor
+    let score = 0;
+    const scoreEl = document.getElementById("score");
+    function updateScore() {
+      scoreEl.textContent = `Skor: ${score}`;
+    }
+    let controlMode = "code"; // "code" veya "free"
+    const infoPanel = document.getElementById("info-panel");
+
+
+    // === PYODIDE ===
+let pyodideReady = false;
+let pyodide = null;
+loadPyodide().then(async (py) => {
+  pyodide = py;
+  pyodideReady = true;
+});
+
+document.getElementById("runBtn").onclick = async () => {
+  if (!pyodideReady) return alert("Pyodide yükleniyor...");
+  const code = document.getElementById("pyInput").value;
+  pyodide.globals.set("forward", forward);
+  pyodide.globals.set("backward", backward);
+  pyodide.globals.set("turn_left", turn_left);
+  pyodide.globals.set("turn_right", turn_right);
+  pyodide.globals.set("spin", spin);
+  pyodide.globals.set("jump", jump);
+  pyodide.globals.set("wave_arm", wave_arm);
+  pyodide.globals.set("dance", dance);
+  pyodide.globals.set("wait", wait);
+  try { await pyodide.runPythonAsync(code); } catch (e) { alert(e); }
+};
+
+
+    // Ödül ekle
+    const rewards = [];
+    function createReward(x, z) {
+      const geo = new THREE.ConeGeometry(0.1, 0.2, 6);
+      const mat = new THREE.MeshStandardMaterial({ color: 0xffcc00 });
+      const reward = new THREE.Mesh(geo, mat);
+      reward.position.set(x, 0.1, z);
+      reward.castShadow = true;
+      scene.add(reward);
+      rewards.push(reward);
+    }
+
+    function flashLight(x, z) {
+      const light = new THREE.PointLight(0xffff00, 2, 2);
+      light.position.set(x, 0.3, z);
+      scene.add(light);
+      let t = 0;
+      const maxT = 30;
+      function animateFlash() {
+        if (t < maxT) {
+          light.intensity = 2 - (t / maxT) * 2;
+          t++;
+          requestAnimationFrame(animateFlash);
+        } else {
+          scene.remove(light);
+        }
+      }
+      animateFlash();
+    }
+
+    // Duman ve partikül efekti
+    const smokeTexture = textureLoader.load('assets/smoke.png');
+
+    function spawnSmoke(x, z) {
+      const material = new THREE.SpriteMaterial({ map: smokeTexture, color: 0xffff66, transparent: true, opacity: 0.5 });
+      const smoke = new THREE.Sprite(material);
+      smoke.position.set(x, 0.5, z);
+      smoke.scale.set(2, 2, 2);
+      scene.add(smoke);
+
+      let t = 0;
+      const maxT = 60;
+      function animateSmoke() {
+        if (t < maxT) {
+          smoke.material.opacity -= 0.01;
+          smoke.scale.multiplyScalar(1.01);
+          t++;
+          requestAnimationFrame(animateSmoke);
+        } else {
+          scene.remove(smoke);
+        }
+      }
+      animateSmoke();
+    }
+
+    function spawnParticles(x, z) {
+      const particleGroup = new THREE.Group();
+      for (let i = 0; i < 30; i++) {
+        const geo = new THREE.SphereGeometry(0.03, 8, 8);
+        const mat = new THREE.MeshBasicMaterial({ color: 0xffff99, transparent: false, opacity: 0.5 });
+        const p = new THREE.Mesh(geo, mat);
+        p.position.set(x, 0.3, z);
+        p.userData = {
+          velocity: new THREE.Vector3(
+            (Math.random() - 0.5) * 0.1,
+            Math.random() * 0.1,
+            (Math.random() - 0.5) * 0.1
+          )
+        };
+        particleGroup.add(p);
+      }
+      scene.add(particleGroup);
+
+      let frame = 0;
+      function animateParticles() {
+        frame++;
+        particleGroup.children.forEach(p => {
+          p.position.add(p.userData.velocity);
+          p.material.opacity -= 0.01;
+        });
+        if (frame < 60) {
+          requestAnimationFrame(animateParticles);
+        } else {
+          scene.remove(particleGroup);
+        }
+      }
+      animateParticles();
+    }
+
+    // Ödül konumları
+    createReward(1, -1);
+    createReward(-1, 2);
+    createReward(2, 1);
+    createReward(-2, -2);
+    createReward(0, 2);
+
+    //animate function
+    function animate() {
+      requestAnimationFrame(animate);
+      
+
+      key_kontrol()
+
+      // Ödül kontrolü
+      for (let i = rewards.length - 1; i >= 0; i--) {
+        const reward = rewards[i];
+        if (robot.position.distanceTo(reward.position) < 0.3) {
+          scene.remove(reward);
+          rewards.splice(i, 1);
+          flashLight(reward.position.x, reward.position.z);
+          spawnSmoke(reward.position.x, reward.position.z);
+          spawnParticles(reward.position.x, reward.position.z);
+          score += 10;
+          updateScore();
+        }
+      }
+
+      if (commandQueue.length > 0) commandQueue.shift()();
+      updateRobot()
+      controls.update();
+      renderer.render(scene, camera);
+
+
+    }
+    animate();
+
+    
+
+window.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
+window.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
+
+function key_kontrol() {
+      if (controlMode !== "free") return; // sadece free modunda çalışsın
+      commandQueue = [];
+      if (keys.a) turn_left(5);
+      if (keys.d) turn_right(5);
+      if (keys.w) forward(2);
+      if (keys.s) backward(2);
+      if (keys[" "]) jump();          // Space ile zıplama
+      if (keys.r) spin();             // R tuşu ile spin
+      if (keys.q) wave_arm();         // Q tuşu ile kol salla
+      if (keys.e) dance(0.1);            // E tuşu ile dans
+}
+
+
+
+function updateRobot() {
+  robot.position.set(robotX, robotY, robotZ);
+  robot.rotation.z = robotRot;
+}
+
+let isRunning = false;
+
+function nextCommand() {
+  if (commandQueue.length > 0) {
+    const cmd = commandQueue.shift();
+    cmd();
+  } else {
+    isRunning = false;
+  }
+}
+
+function forward(step = 1) {
+  commandQueue.push(() => {
+    const totalDistance = parseFloat(step) * 0.1;
+
+    // Mesafe büyüdükçe süre artsın (örnek katsayı: 1000)
+    const duration = Math.max(200, totalDistance * 1000); // minimum 200ms
+
+    const startTime = performance.now();
+    const startX = robotX;
+    const startZ = robotZ;
+    const targetX = startX - Math.sin(robotRot) * totalDistance;
+    const targetZ = startZ - Math.cos(robotRot) * totalDistance;
+
+    function animate(currentTime) {
+      const elapsed = currentTime - startTime;
+      const t = Math.min(elapsed / duration, 1);
+      robotX = startX + (targetX - startX) * t;
+      robotZ = startZ + (targetZ - startZ) * t;
+
+      if (t < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        nextCommand();
+      }
+    }
+
+    requestAnimationFrame(animate);
+  });
+}
+
+// forward(1) → yaklaşık 100ms gibi kısa sürede biter.
+// forward(10) → yaklaşık 1 saniyede tamamlanır.
+
+// function backward(step = 1) {
+//   commandQueue.push(() => {
+//     const totalDistance = parseFloat(step) * 0.1;
+//     const duration = 500;
+//     const startTime = performance.now();
+//     const startX = robotX;
+//     const startZ = robotZ;
+//     const targetX = startX + Math.sin(robotRot) * totalDistance;
+//     const targetZ = startZ + Math.cos(robotRot) * totalDistance;
+
+//     function animate(currentTime) {
+//       const elapsed = currentTime - startTime;
+//       const t = Math.min(elapsed / duration, 1);
+//       robotX = startX + (targetX - startX) * t;
+//       robotZ = startZ + (targetZ - startZ) * t;
+
+//       if (t < 1) {
+//         requestAnimationFrame(animate);
+//       } else {
+//         nextCommand();
+//       }
+//     }
+
+//     requestAnimationFrame(animate);
+//   });
+// }
+
+
+function backward(step = 1) {
+  commandQueue.push(() => {
+    const totalDistance = parseFloat(step) * 0.1;
+
+    // Mesafe büyüdükçe süre artar, minimum 200ms
+    const duration = Math.max(200, totalDistance * 1000);
+
+    const startTime = performance.now();
+    const startX = robotX;
+    const startZ = robotZ;
+    const targetX = startX + Math.sin(robotRot) * totalDistance;
+    const targetZ = startZ + Math.cos(robotRot) * totalDistance;
+
+    function animate(currentTime) {
+      const elapsed = currentTime - startTime;
+      const t = Math.min(elapsed / duration, 1);
+
+      robotX = startX + (targetX - startX) * t;
+      robotZ = startZ + (targetZ - startZ) * t;
+
+      if (t < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        nextCommand();
+      }
+    }
+
+    requestAnimationFrame(animate);
+  });
+}
+
+
+function turn_left(degrees = 90) {
+  commandQueue.push(() => {
+    const totalRotation = THREE.MathUtils.degToRad(parseFloat(degrees));
+    const duration = 300;
+    const startTime = performance.now();
+    const startRot = robotRot;
+    const targetRot = startRot + totalRotation;
+
+    function animate(currentTime) {
+      const elapsed = currentTime - startTime;
+      const t = Math.min(elapsed / duration, 1);
+      robotRot = startRot + (targetRot - startRot) * t;
+
+      if (t < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        nextCommand();
+      }
+    }
+
+    requestAnimationFrame(animate);
+  });
+}
+
+function turn_right(degrees = 90) {
+  commandQueue.push(() => {
+    const totalRotation = THREE.MathUtils.degToRad(parseFloat(degrees));
+    const duration = 300;
+    const startTime = performance.now();
+    const startRot = robotRot;
+    const targetRot = startRot - totalRotation;
+
+    function animate(currentTime) {
+      const elapsed = currentTime - startTime;
+      const t = Math.min(elapsed / duration, 1);
+      robotRot = startRot + (targetRot - startRot) * t;
+
+      if (t < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        nextCommand();
+      }
+    }
+
+    requestAnimationFrame(animate);
+  });
+}
+
+function jump(height = 1.5, duration = 600) {
+  commandQueue.push(() => {
+    const startY = robotY;
+    const peakY = height;
+    const startTime = performance.now();
+
+    function animate(currentTime) {
+      const elapsed = currentTime - startTime;
+      const t = Math.min(elapsed / duration, 1);
+      // Parabolik zıplama hareketi
+      const y = 4 * peakY * t * (1 - t);
+      robotY = startY + y;
+
+      if (t < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        robotY = 0.1;
+        nextCommand();
+      }
+    }
+
+    requestAnimationFrame(animate);
+  });
+}
+
+function spin() {
+  commandQueue.push(() => {
+    const totalRotation = Math.PI * 2;
+    const duration = 1000;
+    const startTime = performance.now();
+    const startRot = robotRot;
+    const targetRot = startRot + totalRotation;
+
+    function animate(currentTime) {
+      const elapsed = currentTime - startTime;
+      const t = Math.min(elapsed / duration, 1);
+      robotRot = startRot + (targetRot - startRot) * t;
+
+      if (t < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        nextCommand();
+      }
+    }
+
+    requestAnimationFrame(animate);
+  });
+}
+
+function wave_arm() {
+  commandQueue.push(() => {
+    let i = 0;
+    function animate() {
+      robot.rotation.y = Math.sin(i * 0.2) * 0.3;
+      i++;
+      if (i < 30) {
+        requestAnimationFrame(animate);
+      } else {
+        robot.rotation.y = 0;
+        nextCommand();
+      }
+    }
+    requestAnimationFrame(animate);
+  });
+}
+
+function dance(step=1) {
+  commandQueue.push(() => {
+    const startX = robotX;
+    const startZ = robotZ
+    let i = 0;
+    function animate() {
+      robotX += Math.sin(i * 0.2) * 0.03 * step;
+      robotZ += Math.cos(i * 0.2) * 0.03 * step;
+      i++;
+      if (i < 60) {
+        requestAnimationFrame(animate);
+      } else {
+        robotX = startX;
+        robotZ = startZ;
+        nextCommand();
+      }
+    }
+    requestAnimationFrame(animate);
+  });
+}
+
+function wait(ticks) {
+//   showAction("Wait");
+  for (let i = 0; i < ticks*50; i++) commandQueue.push(() => {});
+}
+
+// mode button
+const modeButton = document.getElementById("mode-toggle");
+modeButton.addEventListener("click", () => {
+  if (controlMode === "code") {
+    controlMode = "free";
+    modeButton.textContent = "🕹️ Serbest Sürüş";
+    modeButton.style.backgroundColor = "#2a7";
+    infoPanel.style.display = "block";
+    console.log("Mod: Serbest Sürüş");
+  } else {
+    controlMode = "code";
+    modeButton.textContent = "🧠 Kod Sürüşü";
+    modeButton.style.backgroundColor = "#444";
+    infoPanel.style.display = "none";
+    console.log("Mod: Kod Sürüşü");
+  }
+});
+
+
+  </script>
+</body>
+</html>
