@@ -202,7 +202,7 @@
     
     // Robot yükle
     const gltfLoader = new GLTFLoader();
-    const astroGlb = await gltfLoader.loadAsync("assets/robot_car.glb");
+    const astroGlb = await gltfLoader.loadAsync('robot_car.glb');
     const robot = astroGlb.scene;
     robot.scale.set(0.003, 0.004, 0.004);
     robot.rotation.x = -Math.PI / 2;
@@ -220,7 +220,7 @@
 
     // Zemin
     const textureLoader = new THREE.TextureLoader();
-    const pavement = textureLoader.load('assets/pavement.png');
+    const pavement = textureLoader.load('pavement.png');
     pavement.wrapS = THREE.RepeatWrapping;
     pavement.wrapT = THREE.RepeatWrapping;
     pavement.repeat.set(5, 5);
@@ -308,7 +308,7 @@ document.getElementById("runBtn").onclick = async () => {
     }
 
     // Duman ve partikül efekti
-    const smokeTexture = textureLoader.load('assets/smoke.png');
+    const smokeTexture = textureLoader.load('smoke.png');
 
     function spawnSmoke(x, z) {
       const material = new THREE.SpriteMaterial({ map: smokeTexture, color: 0xffff66, transparent: true, opacity: 0.5 });
